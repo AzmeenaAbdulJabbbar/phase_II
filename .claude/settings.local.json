@@ -1,0 +1,6 @@
+{
+  "enabledMcpjsonServers": [
+    "todo-dev-server"
+  ],
+  "enableAllProjectMcpServers": true
+}

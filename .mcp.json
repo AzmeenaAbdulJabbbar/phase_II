@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "todo-dev-server": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "todo_app"],
+      "cwd": "../phase-i/src"
+    }
+  }
+}

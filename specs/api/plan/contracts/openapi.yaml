@@ -1,0 +1,403 @@
+openapi: 3.1.0
+info:
+  title: Phase II Todo API
+  version: 1.0.0
+  description: |
+    Multi-user Todo management API with JWT authentication.
+    All endpoints require Bearer token authentication.
+    User data is strictly isolated - users can only access their own tasks.
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      description: Returns API health status (no auth required)
+      security: []
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/tasks:
+    get:
+      summary: List tasks
+      description: Returns all tasks for the authenticated user
+      operationId: listTasks
+      tags:
+        - Tasks
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create task
+      description: Creates a new task for the authenticated user
+      operationId: createTask
+      tags:
+        - Tasks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/tasks/{task_id}:
+    parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Task UUID
+
+    get:
+      summary: Get task
+      description: Returns a single task by ID (must be owned by authenticated user)
+      operationId: getTask
+      tags:
+        - Tasks
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update task
+      description: Updates task fields (must be owned by authenticated user)
+      operationId: updateTask
+      tags:
+        - Tasks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      summary: Delete task
+      description: Permanently deletes a task (must be owned by authenticated user)
+      operationId: deleteTask
+      tags:
+        - Tasks
+      responses:
+        '204':
+          description: Task deleted (no content)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from Better Auth
+
+  schemas:
+    # Request Schemas
+    TaskCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Task title
+          example: "Complete project documentation"
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+          description: Optional task description
+          example: "Write comprehensive docs for the API endpoints"
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Updated task title
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+          description: Updated description
+        completed:
+          type: boolean
+          description: Mark task as completed or pending
+
+    # Response Schemas
+    TaskRead:
+      type: object
+      required:
+        - id
+        - user_id
+        - title
+        - completed
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Task UUID
+        user_id:
+          type: string
+          format: uuid
+          description: Owner's user UUID
+        title:
+          type: string
+          description: Task title
+        description:
+          type: string
+          nullable: true
+          description: Task description
+        completed:
+          type: boolean
+          description: Completion status
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp (ISO8601)
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp (ISO8601)
+
+    Meta:
+      type: object
+      required:
+        - timestamp
+        - request_id
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp (ISO8601)
+        request_id:
+          type: string
+          format: uuid
+          description: Unique request identifier for tracing
+        total:
+          type: integer
+          description: Total count (for list responses)
+
+    TaskResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/TaskRead'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    TaskListResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskRead'
+        meta:
+          allOf:
+            - $ref: '#/components/schemas/Meta'
+            - type: object
+              required:
+                - total
+              properties:
+                total:
+                  type: integer
+                  description: Total number of tasks
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy]
+        timestamp:
+          type: string
+          format: date-time
+
+    # Error Schemas
+    ErrorDetail:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details (validation errors)
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - meta
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorDetail'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+  responses:
+    Unauthorized:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missing_token:
+              summary: Missing Authorization header
+              value:
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Authorization header required"
+                meta:
+                  timestamp: "2025-12-21T10:00:00Z"
+                  request_id: "550e8400-e29b-41d4-a716-446655440000"
+            invalid_token:
+              summary: Invalid JWT token
+              value:
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid token"
+                meta:
+                  timestamp: "2025-12-21T10:00:00Z"
+                  request_id: "550e8400-e29b-41d4-a716-446655440000"
+            expired_token:
+              summary: Expired JWT token
+              value:
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Token expired"
+                meta:
+                  timestamp: "2025-12-21T10:00:00Z"
+                  request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    Forbidden:
+      description: Access denied (attempting to access another user's resource)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: "FORBIDDEN"
+              message: "Access denied"
+            meta:
+              timestamp: "2025-12-21T10:00:00Z"
+              request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: "NOT_FOUND"
+              message: "Task not found"
+            meta:
+              timestamp: "2025-12-21T10:00:00Z"
+              request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: "VALIDATION_ERROR"
+              message: "Validation failed"
+              details:
+                title: ["Field is required"]
+            meta:
+              timestamp: "2025-12-21T10:00:00Z"
+              request_id: "550e8400-e29b-41d4-a716-446655440000"
+
+tags:
+  - name: Tasks
+    description: Task CRUD operations (requires authentication)
