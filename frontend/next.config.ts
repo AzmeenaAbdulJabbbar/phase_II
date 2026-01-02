@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
   },
 
+  // Fix workspace root detection issue
+  outputFileTracingRoot: process.env.NODE_ENV === 'production'
+    ? undefined
+    : require('path').join(__dirname, '..'),
+
   // Experimental features for Next.js 15
   experimental: {
     // Enable Server Actions
